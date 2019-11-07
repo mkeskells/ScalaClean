@@ -1,7 +1,16 @@
 package scalaclean.scratch
 
+object ScratchMain {
+  def main(args: Array[String]): Unit = {
+    val p : Parent = new Child()
+    println(p.baz)
+  }
+}
 
-/* *** SCALA CLEAN can't detect usage */class Scratch4 {
+abstract class Parent {
+  def baz : List[String]
+}
 
-  /* *** SCALA CLEAN can't detect usage */var myVar: Int  = 1
+class Child extends Parent {
+  override lazy val baz : List[String] = Nil
 }

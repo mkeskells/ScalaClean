@@ -315,6 +315,7 @@ class ScalaCompilerPluginComponent(
         recordExtendsClass(ancestorMSymbol, model, direct = direct)
       }
       val cursor = new overridingPairs.Cursor(classSymbol)
+      var seenMSymbols = Set[ModelCommon]()
       val seen: mutable.Map[Symbol, mutable.Set[Symbol]] = new mutable.HashMap
 
       while (cursor.hasNext) {
@@ -324,19 +325,40 @@ class ScalaCompilerPluginComponent(
             entry.high.owner.javaBinaryNameString != "scala.Any")) {
 
           val dummyMethodSym = entry.low.cloneSymbol(classSymbol)
-          dummyMethodSym.setPos(classSymbol.pos.focusStart)
-          dummyMethodSym.setFlag(Flags.SYNTHETIC)
+          val mSymbol = asMSymbol(dummyMethodSym)
+          if (seenMSymbols.contains(mSymbol)) {
+            println("SKIPPING DUPLICATE")
+          } else {
+            seenMSymbols += mSymbol
+            dummyMethodSym.setPos(classSymbol.pos.focusStart)
+            dummyMethodSym.setFlag(Flags.SYNTHETIC)
 
-          val targetSet = seen.getOrElseUpdate(dummyMethodSym, new mutable.HashSet[Symbol])
-          targetSet += entry.low
-          targetSet += entry.high
+            println("  Symbols = " + dummyMethodSym + " entry.log = " + entry.low + "  entry.high = " + entry.high)
+
+            val targetSet = seen.getOrElseUpdate(dummyMethodSym, new mutable.HashSet[Symbol])
+            targetSet += entry.low
+            targetSet += entry.high
+          }
         }
         cursor.next()
       }
 
+
+      if(seen nonEmpty) {
+        println("SEEN YYYYYY")
+      }
+
       seen foreach { case (dummyMethodSym, targets) =>
+        val mSymbol = asMSymbol(dummyMethodSym)
+//        seenMSymbols.find(_._1 == mSymbol).foreach { case (ms, s) =>
+//          println("S1 = " + dummyMethodSym   + "\t " + dummyMethodSym.toSemantic)
+//          println("S2 = " + s + "\t " + dummyMethodSym.toSemantic)
+//          println("S1 == S2 = " + (dummyMethodSym == s))
+//          throw new IllegalStateException("HERE- Found duplicate mc HERE")
+//        }
+//        seenMSymbols += ((mSymbol, dummyMethodSym))
         enterScope(new ModelPlainMethod(DefDef(dummyMethodSym, new Modifiers(dummyMethodSym.flags, newTermName(""), Nil), global.EmptyTree),
-          asMSymbol(dummyMethodSym), false, false)) { meth =>
+          mSymbol, false, false)) { meth =>
           //if not recorded above, then maybe this should be a synthetic override
           targets.foreach { entry =>
             currentScope.addOverride(asMSymbol(entry), true)
