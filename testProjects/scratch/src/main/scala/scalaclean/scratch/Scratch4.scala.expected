@@ -1,0 +1,6 @@
+object X extends App {
+
+  /* SCALA CLEAN consider rewriting pattern as 3 values are not used */val (_:Int, e:Int, _, _:Int) = (1,2,3, 4)
+
+  println(e)
+}
