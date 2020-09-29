@@ -4,12 +4,13 @@ import java.io.{File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 
-import org.scalatest.{ BeforeAndAfterAllConfigMap, ConfigMap }
+import org.junit.Test
+import org.scalatest.{BeforeAndAfterAllConfigMap, ConfigMap}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.AssertionsForJUnit
 import scalaclean.util.FileHelper.toPlatform
 import scalaclean.cli.SCPatchUtil
-import scalaclean.model.ProjectModel
+import scalaclean.model.{ClassLike, ElementId, ProjectModel}
 import scalaclean.model.impl.ProjectSet
 import scalaclean.test._
 import scalaclean.util.{DiffAssertions, DocHelper, FileHelper}
@@ -25,7 +26,7 @@ trait AbstractUnitTests extends AnyFunSuite with AssertionsForJUnit with DiffAss
     overwrite = configMap.getWithDefault("overwrite", "false").equalsIgnoreCase("true")
   }
 
-  def runTest(file: String, ruleFn: ProjectModel => TestCommon, overwrite: Boolean = false): Unit = {
+  def runTest(file: String, ruleFn: ProjectModel => TestCommon, expectationSuffix: String = "", overwrite: Boolean = false): Unit = {
     val projectName = "unitTestProject"
 
     val scalaCleanWorkspace = if (new File(toPlatform("../testProjects")).exists()) {
@@ -75,7 +76,7 @@ trait AbstractUnitTests extends AnyFunSuite with AssertionsForJUnit with DiffAss
         val origFile = FileIO.slurp(absFile, StandardCharsets.UTF_8)
         val obtained = stripLocalIds(applyRule(rule, targetFile.toString(), origFile))
 
-        val targetOutput = RelativePath(targetFile.toString() + ".expected")
+        val targetOutput = RelativePath(targetFile.toString() + expectationSuffix + ".expected")
         val outputFile = inputSourceDirectories.head.resolve(targetOutput)
         val expected = stripLocalIds(FileIO.slurp(outputFile, StandardCharsets.UTF_8))
 
@@ -104,12 +105,54 @@ trait AbstractUnitTests extends AnyFunSuite with AssertionsForJUnit with DiffAss
   }
 
   private val LocalIds = "/local([0-9]+)".r
+
   private def stripLocalIds(s: String) = LocalIds.replaceAllIn(s, "/localXXXXXXXX")
+}
+
+class ExtendsTests extends AbstractUnitTests {
+
+  def doRun(test: ProjectModel => Test_extends, suffix: String) = {
+    runTest("scalaclean/test/extends_/allExtends.scala",
+      test,
+      expectationSuffix = suffix,
+    overwrite = true)
+
+  }
+
+  @Test def all {
+    doRun(
+      new Test_extends(false, (_, _, _) => true, "all", _),
+      suffix = ".all")
+  }
+
+  @Test def direct1 {
+    doRun(
+      new Test_extends(true, (_, _, _) => true, "direct1", _),
+      suffix = ".direct")
+  }
+
+  @Test def direct2 {
+    doRun(
+      new Test_extends(false, (direct, _, _) => direct, "direct2", _),
+      suffix = ".direct")
+  }
+
+  @Test def indirect {
+    doRun(
+      new Test_extends(false, (direct, _, _) => !direct, "indirect", _),
+      suffix = ".indirect")
+  }
+
+  @Test def collectionName {
+    doRun(
+      new Test_extends(false, (_, _, elementId) => elementId.toString.contains("scala.collection"), "collection", _),
+      suffix = ".collection")
+  }
 }
 
 class UnitTests extends AbstractUnitTests {
   test("nodesTest") {
-    runTest("scalaclean/test/nodes/nodes.scala", new TestNodes(_),true)
+    runTest("scalaclean/test/nodes/nodes.scala", new TestNodes(_))
   }
 
   test("akkaTimeoutTest") {
@@ -121,7 +164,7 @@ class UnitTests extends AbstractUnitTests {
   }
 
   test("internalTransitiveOverriddenByTest") {
-    runTest("scalaclean/test/overriddenBy/internalTransitiveOverriddenBy/internalTransitiveOverriddenBy.scala", new Test_internalTransitiveOverriddenBy(_) )
+    runTest("scalaclean/test/overriddenBy/internalTransitiveOverriddenBy/internalTransitiveOverriddenBy.scala", new Test_internalTransitiveOverriddenBy(_))
   }
 
   test("internalDirectOverriddenBy") {
@@ -154,6 +197,6 @@ class UnitTests extends AbstractUnitTests {
   }
 
   test("annotations") {
-    runTest("scalaclean/test/annotation/Annotated.scala",new TestExtensions(_))
+    runTest("scalaclean/test/annotation/Annotated.scala", new TestExtensions(_))
   }
 }
