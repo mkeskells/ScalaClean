@@ -1,8 +1,7 @@
 package scalaclean.rules.privatiser
 
 import org.scalaclean.analysis.plugin.VisibilityData
-import scalaclean.model.{ClassLike, ElementId, ElementIdM, ElementScope, Mark, ModelElement, SourceModel}
-import ElementIdM.pathNodes.{ObjectPathImpl, PackagePathImpl}
+import scalaclean.model.{ClassLike, ElementId, ElementIds, ElementScope, Mark, ModelElement, NonePath, ObjectPath, PackagePath, RootPath, SourceModel, ThisPath}
 
 private[privatiser] sealed trait PrivatiserLevel extends Mark {
   def reason: String
@@ -34,14 +33,12 @@ private[privatiser] case object Undefined extends PrivatiserLevel {
 }
 
 private[privatiser] object AccessScope {
-  val None: AccessScope = AccessScope(ElementIdM.None, Set.empty)
+  val None: AccessScope = AccessScope(ElementIds.None, Set.empty)
 
   def apply(elementId: ElementId, reasons: Set[String]): AccessScope = {
     val scope = elementId.companionObjectOrSelf
-    scope match {
-      case _: ObjectPathImpl | _: PackagePathImpl =>
-        new AccessScope(scope, reasons)
-      case special if special.isNone || special.isThis|| special.isRoot =>
+    scope.pathType match {
+      case ObjectPath | PackagePath | NonePath | ThisPath | RootPath =>
         new AccessScope(scope, reasons)
       case _ =>
         apply(elementId.parent, reasons)
@@ -57,7 +54,7 @@ private[privatiser] final case class AccessScope private (elementId: ElementId, 
   def widen(other: AccessScope): AccessScope =
     if (elementId.isNone) other
     else if (other.elementId.isNone) this
-    else AccessScope(ElementScope.findCommonScopeParent(ElementIdM, elementId, other.elementId), reasons ++ other.reasons)
+    else AccessScope(ElementScope.findCommonScopeParent(ElementIds, elementId, other.elementId), reasons ++ other.reasons)
 
 }
 
@@ -80,7 +77,7 @@ private[privatiser] final case class Scoped(
   def isProtected = {
     def commonParentScope: ElementId =
       if (protectedScope.elementId.isNone) privateScope.elementId
-      else ElementScope.findCommonScopeParent(ElementIdM, protectedScope.elementId, privateScope.elementId)
+      else ElementScope.findCommonScopeParent(ElementIds, protectedScope.elementId, privateScope.elementId)
 
     forceProtected || privateScope.elementId.isNone || commonParentScope != privateScope.elementId
   }
@@ -140,7 +137,7 @@ private[privatiser] final case class Scoped(
 
     val (isDeclaredPublic, existingScope, explicitScope, existingProtected) =
       context.extensionOfType[VisibilityData] match {
-        case None => (true, ElementIdM.Root, false, false)
+        case None => (true, ElementIds.Root, false, false)
         case Some(VisibilityData(_, _, dec, aScope)) =>
           (false, aScope.getOrElse(implicitScope).companionObjectOrSelf, aScope.isDefined, dec == "protected")
       }
