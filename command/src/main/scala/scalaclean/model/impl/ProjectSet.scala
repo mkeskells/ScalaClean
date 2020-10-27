@@ -3,6 +3,7 @@ package scalaclean.model.impl
 import java.nio.file.Path
 
 import scalaclean.model._
+import scalaclean.rules.timed
 
 import scala.collection.immutable
 import scala.reflect.ClassTag
@@ -11,9 +12,9 @@ class ProjectSet(projectPropertyPaths: Path*) extends ProjectModel {
   val projects: List[Project] = projectPropertyPaths.toList.map(p => Project(p, this))
 
   val elements: Map[ElementId, ElementModelImpl] = {
-    val (elements, rels: immutable.Seq[BasicRelationshipInfo]) = projects.map(_.read).unzip
+    val (elements, rels: immutable.Seq[BasicRelationshipInfo]) = timed("load projects", projects.map(_.read).unzip)
 
-    val modelElements = elements.flatten.toIterator.map(e => e.modelElementId -> e).toMap
+    val modelElements = timed("merge elements", elements.flatten.toIterator.map(e => e.modelElementId -> e).toMap)
 
     if (elements.flatten.size != modelElements.size) {
 
@@ -28,13 +29,14 @@ class ProjectSet(projectPropertyPaths: Path*) extends ProjectModel {
       throw new IllegalStateException("Duplicate elements found")
     }
 
-    val relsFrom = rels.reduce(_ + _).sortValues
-    val relsTo   = relsFrom.byTo.sortValues
+    val relsFrom = timed("fix relsFrom", rels.reduce(_ + _).sortValues)
+    val relsTo   = timed("fix relsTo", relsFrom.byTo.sortValues)
 
-    relsFrom.complete(modelElements)
-    modelElements.values.foreach(_.complete(ElementIds, modelElements, relsFrom = relsFrom, relsTo = relsTo))
 
-    ModelReader.finished()
+    timed("complete rels", relsFrom.complete(modelElements))
+    timed("complete elements", modelElements.values.foreach(_.complete(ElementIds, modelElements, relsFrom = relsFrom, relsTo = relsTo)))
+
+    timed("ModelReader finish", ModelReader.finished())
     modelElements
   }
 

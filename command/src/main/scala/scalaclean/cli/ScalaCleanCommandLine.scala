@@ -71,6 +71,14 @@ abstract class ScalaCleanCommandLine {
   var debug: Boolean = false
 
   @ArgOption(
+    name = "--showTimings",
+    usage = "show a breakdown of what took time",
+    required = false,
+    hidden = false
+  )
+  var showTimings: Boolean = false
+
+  @ArgOption(
     name = "--replace",
     usage = "replace existing files",
     required = false,

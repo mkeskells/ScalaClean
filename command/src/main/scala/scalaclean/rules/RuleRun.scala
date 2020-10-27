@@ -62,15 +62,15 @@ abstract class RuleRun[T <: ScalaCleanCommandLine] {
     if (debug)
       println(s"$name performing analysis")
 
-    markInitial()
+    timed("markInitial", markInitial())
 
-    beforeRule()
+    timed("before graph mark", beforeRule())
 
     if (debug)
       println(s"$name running rule")
 
-    runRule()
-    afterRule()
+    timed("mark graph", runRule())
+    timed("after graph mark", afterRule())
 
     if (debug)
       debugDump()
@@ -252,6 +252,7 @@ abstract class RuleRun[T <: ScalaCleanCommandLine] {
   }
 
   def run(): Boolean = {
+    val ignored = timed //force load
     val projectSet = model match {
       case projectSet: ProjectSet => projectSet
       case _                      => new ProjectSet(options.files: _*)
@@ -261,9 +262,12 @@ abstract class RuleRun[T <: ScalaCleanCommandLine] {
     beforeStart()
 
     var changed = false
-    projectSet.projects.foreach(project => changed |= runRuleOnProject(project))
+    timed("apply changes to files", projectSet.projects.foreach(project => changed |= runRuleOnProject(project)))
     if (options.debug)
       println(s"DEBUG: Changed = $changed")
+
+    if (options.showTimings)
+      println(s"Timings - $timed")
     changed
   }
 
